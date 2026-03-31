@@ -46,6 +46,7 @@ class ConditionType(str, Enum):
     QUALITY_MAX = "quality_max"                      # Maximum resolution (height)
     CODEC_IS = "codec_is"                            # Video codec filter
     HAS_AUDIO_TRACKS = "has_audio_tracks"            # Minimum audio tracks
+    STREAM_NAME_DATE_IS_TODAY = "stream_name_date_is_today"  # Date in stream name matches today
 
     # Channel conditions (check existing channels)
     HAS_CHANNEL = "has_channel"                      # Stream already assigned to a channel
@@ -223,6 +224,19 @@ class Condition:
         elif cond_type in (ConditionType.TVG_ID_EXISTS, ConditionType.LOGO_EXISTS, ConditionType.HAS_CHANNEL):
             if self.value is not None and not isinstance(self.value, bool):
                 errors.append(f"{self.type} value should be boolean or omitted")
+
+        elif cond_type == ConditionType.STREAM_NAME_DATE_IS_TODAY:
+            if self.value is not None and not isinstance(self.value, str):
+                errors.append(f"{self.type} value must be a string (regex pattern) or omitted")
+            elif self.value:
+                # Validate regex pattern
+                if len(self.value) > 500:
+                    errors.append(f"{self.type} regex pattern is too long (max 500 chars)")
+                else:
+                    try:
+                        re.compile(self.value)
+                    except re.error as e:
+                        errors.append(f"Invalid regex pattern for {self.type}: {e}")
 
         if errors:
             logger.warning("[AUTO-CREATE-SCHEMA] Condition validation errors for type=%s: %s", self.type, errors)

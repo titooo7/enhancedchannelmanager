@@ -26,6 +26,7 @@ export type ConditionType =
   | 'quality_max'
   | 'codec_is'
   | 'has_audio_tracks'
+  | 'stream_name_date_is_today'
   // EPG current program conditions
   | 'epg_title_contains'
   | 'epg_title_matches'

@@ -16,6 +16,33 @@ from auto_creation_schema import Condition, ConditionType
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Date Patterns for stream_name_date_is_today Condition
+# =============================================================================
+
+# Each tuple: (regex_pattern, date_format_or_handler)
+# - regex_pattern: Pattern to extract date from stream name
+# - date_format_or_handler: strptime format string, or callable to parse match
+_DATE_PATTERNS = [
+    # ISO 8601 with time: 2026-03-27 15:45:00
+    (r'\b(\d{4})-(\d{2})-(\d{2})\s+\d{2}:\d{2}:\d{2}\b', '%Y-%m-%d'),
+    # ISO 8601 (date only): 2026-03-27
+    (r'\b(\d{4})-(\d{2})-(\d{2})\b', '%Y-%m-%d'),
+    # Day/Month with time (no year): 19/10 14:00 - infer current year
+    (r'\b(\d{2})/(\d{2})\s+\d{2}:\d{2}\b', 'infer_year_day_month'),
+    # Day/Month (no year, no time): 19/10 - infer current year
+    (r'\b(\d{2})/(\d{2})\b', 'infer_year_day_month'),
+    # European: 24-03-2026, 24.03.2026
+    (r'\b(\d{2})[-.](\d{2})[-.](\d{4})\b', '%d-%m-%Y'),
+    # American: 03-24-2026, 03/24/2026
+    (r'\b(\d{2})[-./](\d{2})[-./](\d{4})\b', '%m-%d-%Y'),
+    # Compact: 20260324
+    (r'\b(\d{8})\b', 'compact_ymd'),
+    # Month names: 24-Mar-2026, March 24, 2026
+    (r'\b(\d{1,2})[- ]([A-Za-z]{3})[- ](\d{4})\b', '%d-%b-%Y'),
+]
+
+
 @dataclass
 class StreamContext:
     """
@@ -459,6 +486,8 @@ class ConditionEvaluator:
         elif cond_enum == ConditionType.HAS_AUDIO_TRACKS:
             min_tracks = int(condition.value) if condition.value else 1
             return EvaluationResult(context.audio_tracks >= min_tracks, cond_type, f"audio tracks: {context.audio_tracks} >= {min_tracks}")
+        elif cond_enum == ConditionType.STREAM_NAME_DATE_IS_TODAY:
+            return self._evaluate_stream_name_date_is_today(condition, context, cond_type)
 
         # Channel conditions
         elif cond_enum == ConditionType.HAS_CHANNEL:
@@ -635,6 +664,89 @@ class ConditionEvaluator:
     def _evaluate_normalized_name_not_exists(self, context, cond_type):
         res = self._evaluate_normalized_name_exists(context, "normalized_name_exists")
         return EvaluationResult(not res.matched, cond_type, f"Inverted: {res.details}")
+
+    def _evaluate_stream_name_date_is_today(
+        self,
+        condition: Condition,
+        context: StreamContext,
+        cond_type: str
+    ) -> EvaluationResult:
+        """
+        Check if stream name contains today's date.
+
+        Supports multiple date formats auto-detected by default, or custom regex pattern.
+        """
+        stream_name = context.stream_name
+        today = datetime.now().date()
+
+        # Use custom pattern if provided, else try all common patterns
+        if condition.value:
+            patterns = [(condition.value, None)]  # Custom pattern
+        else:
+            patterns = _DATE_PATTERNS  # Use default patterns
+
+        for pattern, date_format in patterns:
+            try:
+                # Use finditer to find all matches (not just the first)
+                for match in re.finditer(pattern, stream_name, re.IGNORECASE if not condition.case_sensitive else 0):
+                    # Extract date from the match
+                    extracted_date = self._parse_date_from_match(match, date_format, today)
+                    if extracted_date and extracted_date == today:
+                        return EvaluationResult(
+                            True,
+                            cond_type,
+                            f"Stream name contains today's date: {extracted_date}"
+                        )
+            except re.error as e:
+                return EvaluationResult(False, cond_type, f"Invalid regex: {e}")
+
+        return EvaluationResult(False, cond_type, f"No date matching today found in '{stream_name}'")
+
+    def _parse_date_from_match(self, match, date_format, today: datetime.date) -> Optional[datetime.date]:
+        """
+        Parse date from regex match groups.
+
+        Args:
+            match: Regex match object
+            date_format: strptime format string, or special handler string
+            today: Current date (for year inference)
+
+        Returns:
+            Date object or None if parsing failed
+        """
+        try:
+            if date_format == 'infer_year_day_month':
+                # Day/Month format without year - infer current year
+                day = int(match.group(1))
+                month = int(match.group(2))
+                year = today.year
+                # Validate and create date
+                return datetime(year, month, day).date()
+            elif date_format == 'compact_ymd':
+                # Compact: 20260324 -> YYYYMMDD
+                date_str = match.group(1)
+                year = int(date_str[:4])
+                month = int(date_str[4:6])
+                day = int(date_str[6:8])
+                # Validate reasonable range
+                if 1900 <= year <= 2100:
+                    return datetime(year, month, day).date()
+                return None
+            elif isinstance(date_format, str) and date_format:
+                # Standard strptime format
+                date_str = match.group(0)
+                # For formats with time, extract just the date portion
+                if ' ' in date_str:
+                    date_str = ' '.join(match.groups()[:3])
+                parsed = datetime.strptime(date_str, date_format)
+                # Validate reasonable range
+                if 1900 <= parsed.year <= 2100:
+                    return parsed.date()
+                return None
+        except (ValueError, IndexError) as e:
+            logger.debug("[AUTO-CREATE-EVAL] Failed to parse date from match: %s", e)
+            return None
+        return None
 
 
 def evaluate_conditions(conditions: list, context: StreamContext,

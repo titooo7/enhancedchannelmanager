@@ -95,6 +95,13 @@ const FIELDS: FieldDef[] = [
     ],
   },
   { id: 'audio_tracks', label: 'Audio Tracks', category: 'stream', operators: EXISTS_OPS },
+  {
+    id: 'stream_name_date', label: 'Stream Name Date Is Today', category: 'stream',
+    operators: [
+      { id: 'is_today', label: 'Is Today', valueType: 'none' },
+      { id: 'is_not_today', label: 'Is Not Today', valueType: 'none' },
+    ],
+  },
   { id: 'channel', label: 'Channel', category: 'channel', operators: EXISTS_OPS },
   {
     id: 'channel_name', label: 'Channel Name', category: 'channel',
@@ -262,6 +269,10 @@ function buildCondition(
       type = 'channel_has_streams'; value = true;
       if (operator === 'does_not_exist') negate = true;
       break;
+    case 'stream_name_date':
+      type = 'stream_name_date_is_today';
+      if (operator === 'is_not_today') negate = true;
+      break;
     case 'always': type = 'always'; break;
     case 'never': type = 'never'; break;
     default: type = 'stream_name_contains'; value = userValue; break;
@@ -357,6 +368,8 @@ function parseCondition(condition: Condition): { field: string; operator: string
       return { field: 'normalized_match_any', operator: 'does_not_exist', displayValue: '' };
     case 'channel_has_streams':
       return { field: 'channel_streams', operator: negate ? 'does_not_exist' : 'exists', displayValue: '' };
+    case 'stream_name_date_is_today':
+      return { field: 'stream_name_date', operator: negate ? 'is_not_today' : 'is_today', displayValue: '' };
 
     case 'always': return { field: 'always', operator: '', displayValue: '' };
     case 'never': return { field: 'never', operator: '', displayValue: '' };

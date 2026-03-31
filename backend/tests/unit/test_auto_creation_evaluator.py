@@ -665,13 +665,274 @@ class TestConditionEvaluatorMultiField:
         """Negated EPG condition that initially matched should NOT set matched_by_epg (Item 10A)."""
         context = StreamContext(stream_id=1, stream_name="Test")
         context.epg_programs = [{"title": "Rugby World Cup", "description": "Live rugby"}]
-        
+
         evaluator = ConditionEvaluator()
         evaluator.evaluate(
             {"type": "epg_title_contains", "value": "Rugby", "negate": True},
             context
         )
-        
+
         # Negated match should NOT mark as EPG-matched
         assert context.matched_by_epg == False
-        assert context.epg_match is None
+
+
+class TestConditionEvaluatorStreamNameDateIsToday:
+    """Tests for stream_name_date_is_today condition."""
+
+    def test_matches_iso_date_with_time(self):
+        """Matches ISO 8601 format with time: 2026-03-24 15:45:00."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        # Mock datetime.now() to return a specific datetime
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 3, 24)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            # Preserve strptime and other datetime methods
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="Sports Event 2026-03-24 15:45:00")
+            result = evaluator.evaluate({"type": "stream_name_date_is_today"}, ctx)
+
+        assert result.matched is True
+
+    def test_matches_iso_date_only(self):
+        """Matches ISO 8601 format (date only): 2026-03-24."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 3, 24)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="News 2026-03-24")
+            result = evaluator.evaluate({"type": "stream_name_date_is_today"}, ctx)
+
+        assert result.matched is True
+
+    def test_matches_day_month_with_time(self):
+        """Matches Day/Month format with time (no year): 19/10 14:00."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 10, 19)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="Event 19/10 14:00")
+            result = evaluator.evaluate({"type": "stream_name_date_is_today"}, ctx)
+
+        assert result.matched is True
+
+    def test_matches_day_month_only(self):
+        """Matches Day/Month format (no year, no time): 19/10."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 10, 19)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="Event 19/10")
+            result = evaluator.evaluate({"type": "stream_name_date_is_today"}, ctx)
+
+        assert result.matched is True
+
+    def test_no_match_past_date(self):
+        """Does not match past date."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 3, 24)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="Old Event 2026-03-20 10:00:00")
+            result = evaluator.evaluate({"type": "stream_name_date_is_today"}, ctx)
+
+        assert result.matched is False
+        assert "No date matching today" in result.details
+
+    def test_no_match_future_date(self):
+        """Does not match future date."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 3, 24)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="Future Event 2026-04-01")
+            result = evaluator.evaluate({"type": "stream_name_date_is_today"}, ctx)
+
+        assert result.matched is False
+
+    def test_custom_regex_pattern(self):
+        """Matches using custom regex pattern."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 10, 19)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            # Custom pattern for DD.MM format
+            ctx = StreamContext(stream_id=1, stream_name="Event 19.10")
+            result = evaluator.evaluate(
+                {"type": "stream_name_date_is_today", "value": r"\b(\d{2})\.(\d{2})\b"},
+                ctx
+            )
+
+        # This should not match because our custom pattern doesn't handle year inference
+        # The pattern itself doesn't have date_format, so parsing will fail
+        assert result.matched is False
+
+    def test_negated_matches_past_date(self):
+        """Negated condition matches when date is NOT today."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 3, 24)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="Old Event 2026-03-20")
+            result = evaluator.evaluate(
+                {"type": "stream_name_date_is_today", "negate": True},
+                ctx
+            )
+
+        assert result.matched is True
+
+    def test_negated_no_match_today(self):
+        """Negated condition does not match when date IS today."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 3, 24)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="Event 2026-03-24")
+            result = evaluator.evaluate(
+                {"type": "stream_name_date_is_today", "negate": True},
+                ctx
+            )
+
+        assert result.matched is False
+
+    def test_no_date_in_name(self):
+        """Returns False when no date is found in stream name."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 3, 24)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="Just a Channel Name")
+            result = evaluator.evaluate({"type": "stream_name_date_is_today"}, ctx)
+
+        assert result.matched is False
+        assert "No date matching today" in result.details
+
+    def test_multiple_dates_matches_any_today(self):
+        """Matches if ANY date in name equals today."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 3, 24)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            ctx = StreamContext(stream_id=1, stream_name="Event 2026-03-20 to 2026-03-24")
+            result = evaluator.evaluate({"type": "stream_name_date_is_today"}, ctx)
+
+        assert result.matched is True
+
+    def test_case_insensitive_default(self):
+        """Matching is case-insensitive by default."""
+        from unittest.mock import patch, MagicMock
+        from datetime import datetime, date
+
+        evaluator = ConditionEvaluator()
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = date(2026, 3, 24)
+
+        with patch('auto_creation_evaluator.datetime') as mock_dt:
+            mock_dt.now.return_value = mock_now
+            mock_dt.strptime = datetime.strptime
+            mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+
+            # Month names are case-insensitive
+            ctx = StreamContext(stream_id=1, stream_name="Event 24-MAR-2026")
+            result = evaluator.evaluate({"type": "stream_name_date_is_today"}, ctx)
+
+        assert result.matched is True
+

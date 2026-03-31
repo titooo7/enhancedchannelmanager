@@ -232,6 +232,39 @@ class TestConditionValidation:
         errors = cond.validate()
         assert len(errors) == 0
 
+    def test_valid_stream_name_date_is_today_no_value(self):
+        """Validates stream_name_date_is_today without value (auto-detect)."""
+        cond = Condition(type="stream_name_date_is_today")
+        errors = cond.validate()
+        assert len(errors) == 0
+
+    def test_valid_stream_name_date_is_today_with_regex(self):
+        """Validates stream_name_date_is_today with custom regex pattern."""
+        cond = Condition(type="stream_name_date_is_today", value=r"\b(\d{2})/(\d{2})\b")
+        errors = cond.validate()
+        assert len(errors) == 0
+
+    def test_invalid_stream_name_date_is_today_wrong_type(self):
+        """Rejects stream_name_date_is_today with non-string value."""
+        cond = Condition(type="stream_name_date_is_today", value=123)
+        errors = cond.validate()
+        assert len(errors) > 0
+        assert "must be a string" in errors[0]
+
+    def test_invalid_stream_name_date_is_today_regex_too_long(self):
+        """Rejects stream_name_date_is_today with regex pattern over 500 chars."""
+        cond = Condition(type="stream_name_date_is_today", value="a" * 501)
+        errors = cond.validate()
+        assert len(errors) > 0
+        assert "too long" in errors[0]
+
+    def test_invalid_stream_name_date_is_today_bad_regex(self):
+        """Rejects stream_name_date_is_today with invalid regex pattern."""
+        cond = Condition(type="stream_name_date_is_today", value="[invalid(")
+        errors = cond.validate()
+        assert len(errors) > 0
+        assert "Invalid regex" in errors[0]
+
 
 class TestActionFromDict:
     """Tests for Action.from_dict()."""

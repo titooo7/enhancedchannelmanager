@@ -581,7 +581,7 @@ export function RuleBuilder({
 
 // Helper function to check if a condition type needs a value
 function needsValue(type: ConditionType): boolean {
-  const noValueTypes: ConditionType[] = ['always', 'never', 'tvg_id_exists', 'logo_exists', 'has_channel', 'channel_has_streams', 'has_audio_tracks', 'normalized_name_exists', 'normalized_name_not_exists'];
+  const noValueTypes: ConditionType[] = ['always', 'never', 'tvg_id_exists', 'logo_exists', 'has_channel', 'channel_has_streams', 'has_audio_tracks', 'normalized_name_exists', 'normalized_name_not_exists', 'stream_name_date_is_today'];
   return !noValueTypes.includes(type);
 }
 
@@ -621,6 +621,7 @@ function ConditionTypeSelector({
             { type: 'tvg_id_exists' as ConditionType, label: 'TVG-ID Exists' },
             { type: 'any_field_contains' as ConditionType, label: 'Any Field (Name/EPG Today) Contains' },
             { type: 'any_field_matches' as ConditionType, label: 'Any Field (Name/EPG Today) Matches (Regex)' },
+            { type: 'stream_name_date_is_today' as ConditionType, label: 'Stream Name Date Is Today' },
             { type: 'logo_exists' as ConditionType, label: 'Logo Exists' },
           ],
         },
